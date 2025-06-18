@@ -350,7 +350,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
             // Check authentication
             if (!token) {
                 console.log('Dashboard: No token found, redirecting to login');
-                window.location.href = '/login';
+                window.location.href = '/login.html';
                 return;
             }
 
@@ -975,7 +975,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                     
                     // Redirect to login page after a short delay
                     setTimeout(() => {
-                        window.location.href = '/login';
+                        window.location.href = '/login.html';
                     }, 1500);
                 } catch (error) {
                     console.error('Logout error:', error);
@@ -984,7 +984,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                     localStorage.removeItem('username');
                     showFlashMessage('Logged out successfully! 👋', 'success');
                     setTimeout(() => {
-                        window.location.href = '/login';
+                        window.location.href = '/login.html';
                     }, 1500);
                 }
             }

@@ -16,7 +16,7 @@ const sendVerificationEmail = async (email, token) => {
 
     // Use deployed frontend URL for verification
     const frontendUrl = process.env.FRONTEND_URL || 'https://instapinz-vibe.vercel.app';
-    const verificationUrl = `${frontendUrl}/verify?token=${token}`;
+    const verificationUrl = `${frontendUrl}/verify.html?token=${token}`;
     
     const mailOptions = {
         from: process.env.EMAIL_USER,
