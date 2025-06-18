@@ -346,12 +346,12 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
             const token = localStorage.getItem('token');
             console.log('Token found:', !!token);
             
-            // TEMP: Disable login redirect for testing
-            // if (!token) {
-            //     console.log('No token found, redirecting to login');
-            //     window.location.href = '/login';
-            //     return;
-            // }
+            // Check authentication
+            if (!token) {
+                console.log('No token found, redirecting to login');
+                window.location.href = '/login';
+                return;
+            }
 
             const decodedToken = parseJwt(token);
             console.log('Decoded token:', decodedToken);
