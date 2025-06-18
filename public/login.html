@@ -159,11 +159,19 @@
                 
                 if (response.ok) {
                     console.log('Login successful, token received:', data.token);
+                    console.log('Full response data:', data);
                     showToast(data.message, 'success');
                     localStorage.setItem('token', data.token);
+                    
+                    // Debug: Check if token was stored
+                    const storedToken = localStorage.getItem('token');
+                    console.log('Token stored successfully:', !!storedToken);
+                    console.log('Stored token length:', storedToken ? storedToken.length : 0);
+                    
                     // Store username in localStorage for dashboard display
                     if (data.username) {
                         localStorage.setItem('username', data.username);
+                        console.log('Username stored:', data.username);
                     } else {
                         try {
                             const token = data.token;
@@ -175,6 +183,7 @@
                             const decodedToken = JSON.parse(jsonPayload);
                             if (decodedToken.username) {
                                 localStorage.setItem('username', decodedToken.username);
+                                console.log('Username extracted from token:', decodedToken.username);
                             }
                         } catch (error) {
                             console.error('Error decoding token for username:', error);
@@ -184,10 +193,10 @@
                     localStorage.setItem('showWelcomeFlash', '1');
                     console.log('showWelcomeFlash flag set in localStorage');
                     console.log('Token stored in localStorage');
-                    setTimeout(() => {
-                        console.log('Redirecting to dashboard...');
-                        window.location.href = '/dashboard';
-                    }, 500);
+                    
+                    // Immediate redirect for testing
+                    console.log('Redirecting to dashboard immediately...');
+                    window.location.href = '/dashboard';
                 } else {
                     showToast(data.message, 'error');
                     // If user doesn't exist, highlight the signup link

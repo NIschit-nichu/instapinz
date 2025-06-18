@@ -344,17 +344,18 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
 
             // Username display logic
             const token = localStorage.getItem('token');
-            console.log('Token found:', !!token);
+            console.log('Dashboard: Token found:', !!token);
+            console.log('Dashboard: Token value:', token ? token.substring(0, 50) + '...' : 'null');
             
             // Check authentication
             if (!token) {
-                console.log('No token found, redirecting to login');
+                console.log('Dashboard: No token found, redirecting to login');
                 window.location.href = '/login';
                 return;
             }
 
             const decodedToken = parseJwt(token);
-            console.log('Decoded token:', decodedToken);
+            console.log('Dashboard: Decoded token:', decodedToken);
             
             const usernameDisplay = document.getElementById('usernameDisplay');
             console.log('Username display element:', usernameDisplay);
