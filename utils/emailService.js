@@ -14,17 +14,27 @@ const sendVerificationEmail = async (email, token) => {
         pass: process.env.EMAIL_PASS ? '***' : 'not set'
     });
 
-    const verificationUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/auth/verify/${token}`;
+    // Use deployed frontend URL for verification
+    const frontendUrl = process.env.FRONTEND_URL || 'https://instapinz-vibe.vercel.app';
+    const verificationUrl = `${frontendUrl}/verify?token=${token}`;
     
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Verify Your Email',
+        subject: 'Verify Your Email - InstaPinz Vibe',
         html: `
-            <h1>Welcome to Our SaaS Platform!</h1>
-            <p>Please click the link below to verify your email address:</p>
-            <a href="${verificationUrl}">${verificationUrl}</a>
-            <p>This link will expire in 24 hours.</p>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #4f46e5; text-align: center;">Welcome to InstaPinz Vibe! ✨</h1>
+                <p style="font-size: 16px; color: #374151;">Hey there! Thanks for joining our squad. Please click the button below to verify your email address:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="${verificationUrl}" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                        Verify My Email 🚀
+                    </a>
+                </div>
+                <p style="font-size: 14px; color: #6b7280;">This link will expire in 24 hours.</p>
+                <p style="font-size: 14px; color: #6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
+                <p style="font-size: 12px; color: #9ca3af; word-break: break-all;">${verificationUrl}</p>
+            </div>
         `
     };
 

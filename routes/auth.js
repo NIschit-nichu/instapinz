@@ -104,7 +104,10 @@ router.get('/verify/:token', async (req, res) => {
         const user = await User.findOne({ email: decoded.email });
         if (!user) {
             console.log('User not found for email:', decoded.email);
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'User not found' 
+            });
         }
 
         user.isVerified = true;
@@ -112,9 +115,12 @@ router.get('/verify/:token', async (req, res) => {
         await user.save();
         console.log('User verified successfully');
 
-        // Redirect to thank you page
-        console.log('Attempting to redirect to thank-you page...');
-        res.redirect(302, '/thank-you');
+        // Return success response
+        res.json({ 
+            success: true,
+            message: 'Email verified successfully! You can now login.',
+            redirectUrl: '/thank-you'
+        });
     } catch (error) {
         console.error('Verification error:', {
             name: error.name,
@@ -123,25 +129,12 @@ router.get('/verify/:token', async (req, res) => {
             stack: error.stack
         });
         
-        // If token is invalid or expired, show a friendly error page
-        res.status(400).send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Oops! Token Error</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-            </head>
-            <body class="bg-gray-100 min-h-screen flex items-center justify-center">
-                <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-                    <h1 class="text-2xl font-bold text-red-600 mb-4">Oops! Something went wrong</h1>
-                    <p class="text-gray-600 mb-6">Your verification link is invalid or has expired. Please try signing up again.</p>
-                    <a href="/" class="bg-blue-500 text-white px-6 py-2 rounded-full hover:bg-blue-600 transition-colors">
-                        Back to Home
-                    </a>
-                </div>
-            </body>
-            </html>
-        `);
+        // Return error response
+        res.status(400).json({
+            success: false,
+            message: 'Invalid or expired verification link. Please try signing up again.',
+            redirectUrl: '/'
+        });
     }
 });
 
