@@ -198,14 +198,17 @@
                     console.log('Redirecting to dashboard immediately...');
                     window.location.href = '/dashboard';
                 } else {
-                    showToast(data.message, 'error');
+                    console.error('Login failed with status:', response.status);
+                    console.error('Response data:', data);
+                    showToast(data.message || 'Login failed', 'error');
                     // If user doesn't exist, highlight the signup link
-                    if (data.message.includes("Sign up first")) {
+                    if (data.message && data.message.includes("Sign up first")) {
                         document.querySelector('.signup-link').style.color = '#ef4444';
                         document.querySelector('.signup-link').style.fontWeight = '700';
                     }
                 }
             } catch (error) {
+                console.error('Network or parsing error:', error);
                 showToast('Something went wrong! Try again later.', 'error');
             }
         });
