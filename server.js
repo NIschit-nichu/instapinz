@@ -10,8 +10,11 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: 'https://instapinz.vercel.app',
-  credentials: true // if you use cookies or sessions
+  origin: [
+    'https://instapinz.vercel.app',
+    'https://instapinz-nischit-kanthalas-projects.vercel.app'
+  ],
+  credentials: true
 }));
 app.use(express.json());
 
