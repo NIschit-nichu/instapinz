@@ -9,7 +9,10 @@ require('dotenv').config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://instapinz.vercel.app',
+  credentials: true // if you use cookies or sessions
+}));
 app.use(express.json());
 
 // Routes
