@@ -116,11 +116,7 @@ router.get('/verify/:token', async (req, res) => {
         console.log('User verified successfully');
 
         // Return success response
-        res.json({ 
-            success: true,
-            message: 'Email verified successfully! You can now login.',
-            redirectUrl: '/thank-you'
-        });
+        return res.redirect('/thank-you.html');
     } catch (error) {
         console.error('Verification error:', {
             name: error.name,

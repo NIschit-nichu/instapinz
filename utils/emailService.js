@@ -14,9 +14,9 @@ const sendVerificationEmail = async (email, token) => {
         pass: process.env.EMAIL_PASS ? '***' : 'not set'
     });
 
-    // Use deployed frontend URL for verification
-    const frontendUrl = process.env.FRONTEND_URL || 'https://instapinz-vibe.vercel.app';
-    const verificationUrl = `${frontendUrl}/verify.html?token=${token}`;
+    // Use deployed backend URL for verification
+    const backendUrl = process.env.BASE_URL || 'https://your-backend-domain.com';
+    const verificationUrl = `${backendUrl}/api/auth/verify/${token}`;
     
     const mailOptions = {
         from: process.env.EMAIL_USER,

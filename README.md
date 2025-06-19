@@ -128,4 +128,37 @@ Created by Nischit_Kanthala-groups!!!!
 
 ## License
 
-© 2025 InstaPinz Vibe. All rights reserved. 
+© 2025 InstaPinz Vibe. All rights reserved.
+
+# Deployment Instructions
+
+## 1. Prerequisites
+- Node.js and npm installed
+- MongoDB Atlas account (for cloud MongoDB)
+- Email account for sending verification emails (Gmail recommended)
+
+## 2. Environment Variables
+Create a `.env` file with the following:
+```
+MONGODB_URI=your_mongodb_atlas_uri
+JWT_SECRET=your_jwt_secret
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_email_password_or_app_password
+BASE_URL=https://your-backend-domain.com
+```
+
+## 3. Deploying Backend
+- Use [Render](https://render.com/), [Railway](https://railway.app/), or [Heroku](https://heroku.com/) for backend deployment.
+- Set the above environment variables in the platform's dashboard.
+- Make sure your backend is accessible at the URL you set as BASE_URL.
+
+## 4. Frontend
+- Update your frontend to use the deployed backend API URLs.
+
+## 5. Email Verification
+- The verification email will now link to your backend's `/api/auth/verify/:token` route, which redirects to `/thank-you.html` on success.
+
+## 6. Troubleshooting
+- Check backend logs for errors.
+- Ensure MongoDB Atlas is accessible from your deployment platform.
+- Make sure all environment variables are set correctly. 

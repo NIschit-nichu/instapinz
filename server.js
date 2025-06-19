@@ -178,8 +178,10 @@ app.use('/tobejson', express.static(path.join(__dirname, 'public', 'tobejson')))
 const connectDB = async () => {
     try {
         console.log('Attempting to connect to MongoDB...');
-        // Use environment variable for MongoDB URI, fallback to local for development
-        const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/saas-landing';
+        const mongoURI = process.env.MONGODB_URI;
+        if (!mongoURI) {
+            throw new Error('MONGODB_URI environment variable is not set.');
+        }
         console.log('MongoDB URI:', mongoURI);
         
         const conn = await mongoose.connect(mongoURI, {
@@ -206,12 +208,7 @@ const connectDB = async () => {
             code: err.code,
             stack: err.stack
         });
-        // Don't exit process in production, just log the error
-        if (process.env.NODE_ENV === 'production') {
-            console.error('MongoDB connection failed in production');
-        } else {
-            process.exit(1);
-        }
+        process.exit(1);
     }
 };
 
