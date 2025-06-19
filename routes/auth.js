@@ -148,13 +148,6 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        if (!user.isVerified) {
-            console.log('Unverified user attempt:', email);
-            return res.status(401).json({ 
-                message: "Your email isn't verified yet! Check your inbox for that verification link! 📧" 
-            });
-        }
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             console.log('Invalid password for:', email);
@@ -162,15 +155,6 @@ router.post('/login', async (req, res) => {
                 message: "Wrong password! Try again, you got this! 🔑" 
             });
         }
-
-        console.log('User object at login:', user);
-        console.log('User name at login:', user.name);
-
-        const token = jwt.sign(
-            { userId: user._id, username: user.name },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
 
         console.log('Login successful for:', email);
         return res.redirect('/dashboard.html');
