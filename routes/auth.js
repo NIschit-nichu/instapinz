@@ -157,7 +157,7 @@ router.post('/login', async (req, res) => {
         }
 
         console.log('Login successful for:', email);
-        return res.json({ success: true, redirect: '/dashboard.html' });
+        return res.json({ success: true, redirect: '/dashboard.html', username: user.name });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ 
