@@ -173,11 +173,7 @@ router.post('/login', async (req, res) => {
         );
 
         console.log('Login successful for:', email);
-        res.json({ 
-            message: "You're in! Time to touch some grass (but not really) 🌱",
-            token,
-            username: user.name
-        });
+        return res.redirect('/dashboard.html');
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ 
