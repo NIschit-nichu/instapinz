@@ -69,52 +69,28 @@
     </div>
 
     <script>
-        async function verifyEmail() {
-            try {
-                // Get token from URL
-                const urlParams = new URLSearchParams(window.location.search);
-                const token = urlParams.get('token');
-                
-                if (!token) {
-                    throw new Error('No verification token found');
-                }
-
-                // Call backend verification endpoint
-                const response = await fetch(`https://instapinz-backend.onrender.com/api/auth/verify/${token}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-                
-                // Hide loading
-                document.getElementById('loading').classList.add('hidden');
-                
-                if (data.success) {
-                    // Show success
-                    document.getElementById('success').classList.remove('hidden');
-                    window.location.href = '/thank-you.html';
-                } else {
-                    // Show error
-                    document.getElementById('error').classList.remove('hidden');
-                    document.getElementById('errorMessage').textContent = data.message;
-                }
-            } catch (error) {
-                console.error('Verification error:', error);
-                
-                // Hide loading
-                document.getElementById('loading').classList.add('hidden');
-                
-                // Show error
-                document.getElementById('error').classList.remove('hidden');
-                document.getElementById('errorMessage').textContent = 'Something went wrong. Please try again.';
+        document.addEventListener("DOMContentLoaded", function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get("token");
+            if (token) {
+                fetch("https://instapinz-backend.onrender.com/api/auth/verify?token=" + token)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Redirect on success
+                            window.location.href = "thank-you.html";
+                        } else {
+                            // Show error
+                            document.body.innerHTML = "<h2>Verification failed: " + data.message + "</h2>";
+                        }
+                    })
+                    .catch(err => {
+                        document.body.innerHTML = "<h2>Verification failed: " + err.message + "</h2>";
+                    });
+            } else {
+                document.body.innerHTML = "<h2>No token provided.</h2>";
             }
-        }
-
-        // Start verification when page loads
-        document.addEventListener('DOMContentLoaded', verifyEmail);
+        });
     </script>
 </body>
 </html> 
