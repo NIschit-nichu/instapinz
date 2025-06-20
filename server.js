@@ -12,7 +12,8 @@ const app = express();
 app.use(cors({
   origin: [
     'https://instapinz.vercel.app',
-    'https://instapinz-nischit-kanthalas-projects.vercel.app'
+    'https://instapinz-nischit-kanthalas-projects.vercel.app',
+    'https://instapinz-git-master-nischit-kanthalas-projects.vercel.app'
   ],
   credentials: true
 }));
