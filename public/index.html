@@ -99,7 +99,11 @@
 
             try {
                 console.log('Attempting signup with:', { name: formData.name, email: formData.email });
-                const response = await fetch('https://instapinz-backend.onrender.com/api/auth/signup', {
+               const API_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:3000'
+  : 'https://instapinz-backend.onrender.com';
+
+const response = await fetch(`${API_URL}/api/auth/signup`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

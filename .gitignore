@@ -16,18 +16,22 @@ yarn-error.log*
 *.key
 ssl/
 
-# Media files with long names (causing Git issues)
-# public/tobejson/
-# public/webdesigns/
+# Media folders (do not commit large assets)
+public/tobejson/
+public/webdesigns/
 
-# Large media files (should be served via API instead)
-public/*.mp4
-public/*.avif
-public/*.jpg
-public/*.jpeg
-public/*.png
-public/*.gif
-public/*.webp
+# Large media files (ignore anywhere under public/)
+public/**/*.mp4
+public/**/*.webm
+public/**/*.mov
+public/**/*.ogg
+public/**/*.avif
+public/**/*.jpg
+public/**/*.jpeg
+public/**/*.png
+public/**/*.gif
+public/**/*.webp
+public/**/*.heic
 
 # JSON files with media data (too large for Git)
 public/*.json

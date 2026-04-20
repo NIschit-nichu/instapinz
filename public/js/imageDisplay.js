@@ -3,8 +3,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const errorMessageDiv = document.getElementById('error-message');
 
     try {
+        const API_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:3000'
+            : 'https://instapinz-backend.onrender.com';
+
         // Fetch media files from both directories
-        const mediaResponse = await fetch('https://instapinz-backend.onrender.com/api/media-files');
+        const mediaResponse = await fetch(`${API_URL}/api/media-files`);
         if (!mediaResponse.ok) {
             throw new Error(`HTTP error! status: ${mediaResponse.status}`);
         }
@@ -26,8 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tobejsonMedia = mediaData.data.tobejson || [];
         
         // Convert media objects to URLs
-        const webdesignsUrls = webdesignsMedia.map(item => item.path);
-        const tobejsonUrls = tobejsonMedia.map(item => item.path);
+        const webdesignsUrls = webdesignsMedia.map(item => item.url || `${API_URL}${item.path}`);
+        const tobejsonUrls = tobejsonMedia.map(item => item.url || `${API_URL}${item.path}`);
 
         // Combine all media URLs (JSON, webdesigns, tobejson) and shuffle them
         let allMediaUrls = [...fashionImageUrls, ...webdesignsUrls, ...tobejsonUrls];
@@ -63,7 +67,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Create a mapping to get media type and source info
         const mediaInfoMap = new Map();
         [...webdesignsMedia, ...tobejsonMedia].forEach(item => {
-            mediaInfoMap.set(item.path, item);
+            const key = item.url || `${API_URL}${item.path}`;
+            mediaInfoMap.set(key, item);
         });
 
         // Pagination state

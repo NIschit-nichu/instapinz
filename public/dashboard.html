@@ -205,7 +205,24 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                 <div id="fashion-tab" class="tab-content active">
                     <div class="dashboard-container">
                         <div id="error-message"></div>
-                        <div id="image-display" class="masonry-grid"></div>
+                        <button id="refreshGallery" class="mb-4 bg-green-500 text-white px-4 py-2 rounded">
+  Refresh Images
+</button>
+
+                        <div id="image-display" class="masonry-grid">
+                            <div id="gallery-sentinel" class="h-10"></div>
+                        </div>
+                        <!-- Full-screen loading overlay (blocks screen) -->
+                        <div id="gallery-loading-overlay" class="hidden fixed inset-0 z-[9000] items-center justify-center">
+                            <div class="absolute inset-0 bg-black/70"></div>
+                            <div class="relative bg-white rounded-2xl px-8 py-6 shadow-2xl flex items-center gap-4">
+                                <div class="w-10 h-10 border-4 border-gray-300 border-t-gray-900 rounded-full animate-spin"></div>
+                                <div>
+                                    <div class="text-lg font-bold text-gray-900">Loading feed…</div>
+                                    <div class="text-sm text-gray-600">Please wait</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -308,6 +325,9 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
     </div>
 
     <script>
+        const API_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:3000'
+  : 'https://instapinz-backend.onrender.com';
         // Wait for DOM to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
             // Check for welcome flag immediately
@@ -330,6 +350,9 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
             // Function to decode JWT token (simplified for demonstration, not for production with sensitive data)
             function parseJwt (token) {
                 try {
+                    if (!token || typeof token !== 'string') return null;
+                    const parts = token.split('.');
+                    if (parts.length < 2 || !parts[1]) return null;
                     const base64Url = token.split('.')[1];
                     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
                     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
@@ -394,6 +417,14 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
 
             // Tab functionality
             document.querySelectorAll('.tab-button').forEach(button => {
+                const fashionTabBtn = document.querySelector('[data-tab="fashion"]');
+
+if (fashionTabBtn) {
+    fashionTabBtn.addEventListener('click', async () => {
+        console.log("Fashion tab clicked");
+        await loadFashionGallery();
+    });
+}
                 button.addEventListener('click', () => {
                     // Remove active class from all tabs and buttons
                     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
@@ -434,7 +465,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                         updateProgress(10);
 
                         // Call the actual API endpoint
-                        const response = await fetch('https://instapinz-backend.onrender.com/api/scrape-instagram', {
+                        const response = await fetch(`${API_URL}/api/scrape-instagram`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -579,42 +610,244 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                 return postDiv;
             }
 
-            // Function to open image modal (reused from original code)
-            function openImageModal(mediaUrl) {
-                // Create overlay
-                const overlay = document.createElement('div');
-                overlay.classList.add('fixed', 'inset-0', 'bg-black', 'bg-opacity-75', 'flex', 'items-center', 'justify-center', 'z-50');
-                overlay.id = 'image-modal-overlay';
+            // Function to open media modal (image or video)
+           function rgbToHex(r, g, b) {
+    const toHex = (n) => n.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
 
-                // Create modal content
-                const modalContent = document.createElement('div');
-                modalContent.classList.add('relative', 'bg-white', 'p-4', 'rounded-lg', 'max-w-4xl', 'max-h-full', 'overflow-auto');
+function colorDistance(a, b) {
+    return Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+}
 
-                // Create media element
-                const fullMediaElement = document.createElement('img');
-                fullMediaElement.src = mediaUrl;
-                fullMediaElement.alt = 'Full Image';
-                fullMediaElement.classList.add('max-w-full', 'max-h-[80vh]', 'object-contain');
+function clamp01(x) {
+    return Math.max(0, Math.min(1, x));
+}
 
-                // Create close button
-                const closeBtn = document.createElement('button');
-                closeBtn.innerHTML = '&times;';
-                closeBtn.classList.add('absolute', 'top-2', 'right-2', 'text-gray-700', 'hover:text-gray-900', 'text-4xl', 'font-bold', 'p-2');
-                closeBtn.addEventListener('click', closeImageModal);
+function mix(a, b, t) {
+    return Math.round(a + (b - a) * clamp01(t));
+}
 
-                modalContent.appendChild(fullMediaElement);
-                modalContent.appendChild(closeBtn);
-                overlay.appendChild(modalContent);
-                document.body.appendChild(overlay);
+function adjustColor({ r, g, b }, amount = 0.15) {
+    // amount > 0 => lighten, amount < 0 => darken
+    const t = amount >= 0 ? amount : -amount;
+    const target = amount >= 0 ? 255 : 0;
+    return {
+        r: mix(r, target, t),
+        g: mix(g, target, t),
+        b: mix(b, target, t)
+    };
+}
 
-                // Close modal when clicking outside
-                overlay.addEventListener('click', (e) => {
-                    if (e.target === overlay) {
-                        closeImageModal();
+function relativeLuminance({ r, g, b }) {
+    // sRGB -> linear
+    const srgbToLin = (c) => {
+        const v = c / 255;
+        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    const R = srgbToLin(r);
+    const G = srgbToLin(g);
+    const B = srgbToLin(b);
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+
+function pickReadableTextColor(bg) {
+    // returns '#111827' (dark) or '#ffffff' (light)
+    const L = relativeLuminance(bg);
+    return L > 0.52 ? '#111827' : '#ffffff';
+}
+
+function styleCloseButton(closeBtn, bgSample) {
+    const textColor = pickReadableTextColor(bgSample);
+    const isLightText = textColor === '#ffffff';
+    closeBtn.style.color = textColor;
+    closeBtn.style.background = isLightText ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.55)';
+    closeBtn.style.border = isLightText ? '1px solid rgba(255,255,255,0.25)' : '1px solid rgba(0,0,0,0.12)';
+    closeBtn.style.backdropFilter = 'blur(10px)';
+}
+
+async function extractDominantColorsFromImageUrl(url) {
+    return await new Promise((resolve, reject) => {
+        const img = new Image();
+        // Try to allow canvas pixel read when server sends CORS headers
+        img.crossOrigin = 'anonymous';
+        img.decoding = 'async';
+        img.loading = 'eager';
+
+        img.onload = () => {
+            try {
+                const maxSize = 220;
+                const scale = Math.min(1, maxSize / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+                const w = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+                const h = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                if (!ctx) throw new Error('Canvas not supported');
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const { data } = ctx.getImageData(0, 0, w, h);
+
+                // Histogram with quantization (4 bits per channel => 4096 bins)
+                const counts = new Map();
+                const step = Math.max(1, Math.floor((w * h) / 12000));
+
+                for (let i = 0; i < data.length; i += 4 * step) {
+                    const a = data[i + 3];
+                    if (a < 200) continue;
+
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+
+                    // Skip near-white / near-black pixels (usually background / borders)
+                    const max = Math.max(r, g, b);
+                    const min = Math.min(r, g, b);
+                    if (max > 245 && min > 245) continue;
+                    if (max < 18 && min < 18) continue;
+
+                    const rq = r >> 4;
+                    const gq = g >> 4;
+                    const bq = b >> 4;
+                    const key = (rq << 8) | (gq << 4) | bq;
+                    counts.set(key, (counts.get(key) || 0) + 1);
+                }
+
+                const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+                if (sorted.length === 0) throw new Error('No pixels sampled');
+
+                const decode = (key) => {
+                    const rq = (key >> 8) & 0x0f;
+                    const gq = (key >> 4) & 0x0f;
+                    const bq = key & 0x0f;
+                    // Convert back to 0..255 center of bucket
+                    return { r: rq * 16 + 8, g: gq * 16 + 8, b: bq * 16 + 8 };
+                };
+
+                const primary = decode(sorted[0][0]);
+                let secondary = null;
+                for (let i = 1; i < sorted.length; i++) {
+                    const c = decode(sorted[i][0]);
+                    if (colorDistance(primary, c) >= 70) {
+                        secondary = c;
+                        break;
                     }
-                });
-            }
+                }
+                if (!secondary) secondary = adjustColor(primary, -0.18);
 
+                resolve({ primary, secondary });
+            } catch (err) {
+                reject(err);
+            }
+        };
+
+        img.onerror = () => reject(new Error('Image failed to load for color extraction'));
+        img.src = url;
+    });
+}
+
+async function applyModalGradientFromImage(modalEl, imageUrl) {
+    try {
+        const { primary, secondary } = await extractDominantColorsFromImageUrl(imageUrl);
+
+        // Slight adjustments so gradient looks nicer behind content
+        const p = adjustColor(primary, -0.08);
+        const s = adjustColor(secondary, -0.06);
+
+        const c1 = rgbToHex(p.r, p.g, p.b);
+        const c2 = rgbToHex(s.r, s.g, s.b);
+
+        modalEl.style.background = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+        modalEl.style.border = '1px solid rgba(255,255,255,0.25)';
+        modalEl.style.boxShadow = '0 20px 60px rgba(0,0,0,0.35)';
+
+        const closeBtn = modalEl.querySelector('[data-role="modal-close"]');
+        if (closeBtn) {
+            // sample: average of the two colors used in the gradient
+            const avg = { r: Math.round((p.r + s.r) / 2), g: Math.round((p.g + s.g) / 2), b: Math.round((p.b + s.b) / 2) };
+            styleCloseButton(closeBtn, avg);
+        }
+    } catch (e) {
+        // Fallback: keep existing styling if CORS blocks canvas
+        console.warn('Could not extract image colors for modal gradient:', e);
+        modalEl.style.background = 'linear-gradient(135deg, #111827 0%, #0f172a 100%)';
+        modalEl.style.border = '1px solid rgba(255,255,255,0.15)';
+        modalEl.style.boxShadow = '0 20px 60px rgba(0,0,0,0.35)';
+
+        const closeBtn = modalEl.querySelector('[data-role="modal-close"]');
+        if (closeBtn) styleCloseButton(closeBtn, { r: 17, g: 24, b: 39 });
+    }
+}
+
+           function openImageModal(mediaUrl, mediaInfo = null) {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50';
+
+    const modal = document.createElement('div');
+    modal.className = 'relative p-4 rounded-lg max-w-3xl w-full';
+    // default backdrop until image colors are extracted
+    modal.style.background = 'linear-gradient(135deg, #111827 0%, #0f172a 100%)';
+
+    const isVideoByExt = (() => {
+        try {
+            const cleanUrl = String(mediaUrl).split('?')[0].split('#')[0];
+            const ext = cleanUrl.split('.').pop().toLowerCase();
+            return ['mp4', 'webm', 'ogg', 'mov'].includes(ext);
+        } catch {
+            return false;
+        }
+    })();
+
+    const isVideo = mediaInfo?.type === 'video' || isVideoByExt;
+
+    let mediaEl;
+    if (isVideo) {
+        const video = document.createElement('video');
+        video.src = mediaUrl;
+        video.controls = true;
+        video.autoplay = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.className = 'w-full max-h-[70vh] object-contain bg-black rounded';
+        mediaEl = video;
+    } else {
+        const img = document.createElement('img');
+        img.src = mediaUrl;
+        img.className = 'w-full max-h-[70vh] object-contain';
+        img.crossOrigin = 'anonymous';
+        img.addEventListener('load', () => {
+            applyModalGradientFromImage(modal, mediaUrl);
+        }, { once: true });
+        mediaEl = img;
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.innerText = '✕';
+    closeBtn.dataset.role = 'modal-close';
+    closeBtn.className = 'absolute top-2 right-2 text-2xl rounded-full w-10 h-10 flex items-center justify-center leading-none';
+    // default styling (updated again after gradient extraction)
+    styleCloseButton(closeBtn, { r: 17, g: 24, b: 39 });
+    closeBtn.onclick = () => overlay.remove();
+
+    const downloadBtn = document.createElement('a');
+    downloadBtn.innerText = 'Download';
+    downloadBtn.href = mediaUrl;
+    downloadBtn.download = '';
+    downloadBtn.className = 'block mt-4 bg-blue-500 text-white px-4 py-2 rounded text-center';
+
+    modal.appendChild(closeBtn);
+    modal.appendChild(mediaEl);
+    modal.appendChild(downloadBtn);
+    overlay.appendChild(modal);
+
+    document.body.appendChild(overlay);
+
+    overlay.onclick = (e) => {
+        if (e.target === overlay) overlay.remove();
+    };
+}
             // Function to close the image modal
             function closeImageModal() {
                 const overlay = document.getElementById('image-modal-overlay');
@@ -623,12 +856,155 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                 }
             }
 
+            // Fashion gallery: infinite scroll (Instagram/Pinterest style)
+            // Use var to avoid temporal-dead-zone issues with early calls.
+            var fashionCursor = null;
+            var fashionLoading = false;
+            var fashionDone = false;
+            var fashionInitialLoaded = false;
+            var fashionSeed = null;
+
+            function newSeed() {
+                return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            }
+
+            async function loadFashionGallery(reset = false) {
+    try {
+        console.log("Loading Fashion Gallery...");
+
+        const container = document.getElementById('image-display');
+        const sentinel = document.getElementById('gallery-sentinel');
+        const loadingOverlay = document.getElementById('gallery-loading-overlay');
+        if (!container || !sentinel) return;
+
+        if (reset) {
+            // Keep sentinel inside the container
+            container.innerHTML = '';
+            container.appendChild(sentinel);
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('hidden');
+                loadingOverlay.classList.remove('flex');
+            }
+            fashionCursor = null;
+            fashionLoading = false;
+            fashionDone = false;
+            fashionInitialLoaded = false;
+            fashionSeed = newSeed();
+        }
+
+        if (fashionLoading || fashionDone) return;
+        fashionLoading = true;
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.classList.add('flex');
+        }
+
+        if (!fashionSeed) fashionSeed = newSeed();
+
+        const params = new URLSearchParams();
+        // Lazy loading: first load 100 items, then load more on scroll (smaller batches)
+        const limit = 100;
+        params.set('limit', String(limit));
+        params.set('source', 'all');
+        params.set('seed', fashionSeed);
+        if (fashionCursor) params.set('cursor', fashionCursor);
+
+        const response = await fetch(`${API_URL}/api/media-files?${params.toString()}`);
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch data");
+        }
+
+        const result = await response.json();
+        console.log("Fashion Data:", result);
+
+        const pageItems = result?.data?.page || [];
+        fashionCursor = result?.data?.nextCursor || null;
+        fashionInitialLoaded = true;
+        if (!fashionCursor) fashionDone = true;
+
+        if (!Array.isArray(pageItems) || pageItems.length === 0) {
+            if (container.children.length === 1) {
+                // only sentinel exists
+                const msg = document.createElement('p');
+                msg.textContent = 'No media found';
+                container.insertBefore(msg, sentinel);
+            }
+            return;
+        }
+
+        pageItems.forEach(item => {
+            if (!item || !item.url) return;
+
+            const fileExtension = item.filename ? item.filename.toLowerCase().split('.').pop() : '';
+            let el;
+
+            if (["mp4", "webm", "ogg", "mov"].includes(fileExtension) || item.type === 'video') {
+                el = document.createElement('video');
+                el.src = item.url;
+                el.autoplay = true;
+                el.loop = true;
+                el.muted = true;
+                el.playsInline = true;
+            } else {
+                el = document.createElement('img');
+                el.src = item.url;
+                el.alt = item.filename || 'Media';
+                el.loading = 'lazy';
+                el.onerror = () => {
+                    el.remove();
+                };
+            }
+
+            el.style.width = '100%';
+            el.style.marginBottom = '20px';
+            el.style.display = 'block';
+
+            container.insertBefore(el, sentinel);
+            el.addEventListener('click', () => openImageModal(item.url, item));
+        });
+
+    } catch (err) {
+        console.error("Fashion gallery error:", err);
+    } finally {
+        fashionLoading = false;
+        const loadingOverlay = document.getElementById('gallery-loading-overlay');
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            loadingOverlay.classList.remove('flex');
+        }
+    }
+}
+
             // Media Library functionality
             let allMediaData = [];
             let currentFilter = 'all';
 
             // Load media library on page load
             loadMediaLibrary();
+            // New feed order each reload/login
+            fashionSeed = newSeed();
+            loadFashionGallery(true);
+            // Infinite scroll: load next page when bottom sentinel is visible
+            const gallerySentinel = document.getElementById('gallery-sentinel');
+            if (gallerySentinel && 'IntersectionObserver' in window) {
+                const io = new IntersectionObserver((entries) => {
+                    const [entry] = entries;
+                    if (entry && entry.isIntersecting) {
+                        loadFashionGallery(false);
+                    }
+                }, { root: null, rootMargin: '600px', threshold: 0 });
+                io.observe(gallerySentinel);
+            } else {
+                // Fallback: basic scroll listener
+                window.addEventListener('scroll', () => {
+                    const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 1200;
+                    if (nearBottom) loadFashionGallery(false);
+                });
+            }
+            document.getElementById('refreshGallery').addEventListener('click', () => {
+    loadFashionGallery(true);
+});
 
             // Load media library when tab is opened
             const mediaTabBtn = document.querySelector('[data-tab="media-library"]');
@@ -642,7 +1018,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                 const mediaLibraryDisplay = document.getElementById('mediaLibraryDisplay');
                 
                 try {
-                    const response = await fetch('https://instapinz-backend.onrender.com/api/media-files');
+                    const response = await fetch(`${API_URL}/api/media-files`);
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
@@ -675,10 +1051,29 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                     const container = document.createElement('div');
                     container.className = 'gallery-item';
                     let mediaElement;
-                    const fileExtension = item.filename.toLowerCase().split('.').pop();
+
+if (!item || !item.path) {
+    console.warn("Invalid media item:", item);
+    return;
+}
+
+const fileExtension = item.filename ? item.filename.toLowerCase().split('.').pop() : '';
+
+if (["mp4", "webm", "ogg", "mov"].includes(fileExtension)) {
+    mediaElement = document.createElement('video');
+    mediaElement.src = `${API_URL}${item.path}`;
+    mediaElement.autoplay = true;
+    mediaElement.loop = true;
+    mediaElement.muted = true;
+    mediaElement.playsInline = true;
+    mediaElement.style.width = '100%';
+} else {
+    mediaElement = document.createElement('img');
+    mediaElement.src = `${API_URL}${item.path}`;
+    mediaElement.style.width = '100%';
+}
                     if (["mp4", "webm", "ogg", "mov"].includes(fileExtension)) {
-                        mediaElement = document.createElement('video');
-                        mediaElement.src = item.path;
+                        mediaElement.src = `${API_URL}${item.path}`;
                         mediaElement.autoplay = true;
                         mediaElement.loop = true;
                         mediaElement.muted = true;
@@ -702,7 +1097,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                         container.appendChild(mediaContainer);
                     } else {
                         mediaElement = document.createElement('img');
-                        mediaElement.src = item.path;
+                        mediaElement.src = `${API_URL}${item.path}`;
                         mediaElement.alt = item.filename;
                         mediaElement.style.width = '100%';
                         mediaElement.style.display = 'block';
@@ -729,7 +1124,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                         <div class="text-xs text-gray-500">${item.type} • ${item.source}</div>
                     `;
                     container.appendChild(filenameDiv);
-                    container.addEventListener('click', () => openImageModal(item.path, item));
+container.addEventListener('click', () => openImageModal(`${API_URL}${item.path}`, item));
                     mediaLibraryDisplay.appendChild(container);
                 });
             }
@@ -957,7 +1352,7 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
                     // Call server-side logout endpoint
                     const token = localStorage.getItem('token');
                     if (token) {
-                        await fetch('https://instapinz-backend.onrender.com/api/auth/logout', {
+                        await fetch(`${API_URL}/api/auth/logout`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -990,6 +1385,5 @@ background: linear-gradient(to right, #121FCF 6%, #E50000 81%);
             }
         });
     </script>
-    <script src="js/imageDisplay.js"></script>
 </body>
 </html> 

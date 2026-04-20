@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 require('dotenv').config();
+console.log("ENV CHECK:", process.env.MONGODB_URI);
 
 const app = express();
 
@@ -32,51 +33,132 @@ async function safeReadDir(dir) {
     }
 }
 
-// API endpoint to get all media files from webdesigns and tobejson directories
+function getBaseUrl(req) {
+    const configured = process.env.PUBLIC_BASE_URL;
+    if (configured && typeof configured === 'string' && configured.trim()) {
+        return configured.trim().replace(/\/+$/, '');
+    }
+    const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] || req.get('host') || '').toString().split(',')[0].trim();
+    return `${proto}://${host}`.replace(/\/+$/, '');
+}
+
+function getMediaTypeByExt(ext) {
+    const videoExts = new Set(['mp4', 'webm', 'ogg', 'mov']);
+    const imageExts = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif']);
+    if (videoExts.has(ext)) return 'video';
+    if (imageExts.has(ext)) return 'image';
+    return 'unknown';
+}
+
+function encodePathSegment(segment) {
+    return encodeURIComponent(segment).replace(/%2F/g, '/');
+}
+
+async function listMediaFromDir(absDirPath, publicPrefix, source) {
+    const files = await safeReadDir(absDirPath);
+    const media = [];
+    for (const file of files) {
+        const ext = file.toLowerCase().split('.').pop();
+        const type = getMediaTypeByExt(ext);
+        if (type === 'unknown') continue;
+        const encodedFile = encodePathSegment(file);
+        media.push({
+            filename: file,
+            path: `/${publicPrefix}/${encodedFile}`,
+            type,
+            source
+        });
+    }
+    // deterministic order to keep pagination stable across reloads
+    media.sort((a, b) => a.filename.localeCompare(b.filename));
+    return media;
+}
+
+function paginate(items, limit, cursor) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 30, 200));
+    let startIndex = 0;
+    if (cursor) {
+        const decoded = Buffer.from(String(cursor), 'base64').toString('utf8');
+        const idx = Number(decoded);
+        if (Number.isFinite(idx) && idx >= 0) startIndex = idx;
+    }
+    const slice = items.slice(startIndex, startIndex + safeLimit);
+    const nextIndex = startIndex + slice.length;
+    const nextCursor = nextIndex < items.length ? Buffer.from(String(nextIndex), 'utf8').toString('base64') : null;
+    return { slice, nextCursor, limit: safeLimit, startIndex };
+}
+
+function fnv1a32(str) {
+    // Simple deterministic hash for stable "shuffle"
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    // convert to unsigned
+    return h >>> 0;
+}
+
+function seededOrder(items, seed) {
+    const s = String(seed ?? '');
+    return [...items].sort((a, b) => {
+        const ha = fnv1a32(`${s}|${a.source}|${a.filename}`);
+        const hb = fnv1a32(`${s}|${b.source}|${b.filename}`);
+        return ha - hb;
+    });
+}
+
+// API endpoint to get media files (images/videos) from webdesigns and tobejson directories
+// Supports stable pagination: ?limit=30&cursor=<base64Index>&type=image|video&source=webdesigns|tobejson|all&shuffle=1
 app.get('/api/media-files', async (req, res) => {
     try {
+        const baseUrl = getBaseUrl(req);
         const webdesignsPath = path.join(__dirname, 'public', 'webdesigns');
         const tobejsonPath = path.join(__dirname, 'public', 'tobejson');
         
-        // Get files from webdesigns directory (handle missing dir)
-        const webdesignsFiles = await safeReadDir(webdesignsPath);
-        const webdesignsMedia = webdesignsFiles
-            .filter(file => {
-                const ext = file.toLowerCase().split('.').pop();
-                return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'mp4', 'webm', 'ogg', 'mov'].includes(ext);
-            })
-            .map(file => ({
-                filename: file,
-                path: `/webdesigns/${file}`,
-                type: file.toLowerCase().split('.').pop() === 'mp4' ? 'video' : 'image',
-                source: 'webdesigns'
-            }));
+        const webdesignsMedia = await listMediaFromDir(webdesignsPath, 'webdesigns', 'webdesigns');
+        const tobejsonMedia = await listMediaFromDir(tobejsonPath, 'tobejson', 'tobejson');
 
-        // Get files from tobejson directory (handle missing dir)
-        const tobejsonFiles = await safeReadDir(tobejsonPath);
-        const tobejsonMedia = tobejsonFiles
-            .filter(file => {
-                const ext = file.toLowerCase().split('.').pop();
-                return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'mp4', 'webm', 'ogg', 'mov'].includes(ext);
-            })
-            .map(file => ({
-                filename: file,
-                path: `/tobejson/${file}`,
-                type: file.toLowerCase().split('.').pop() === 'mp4' ? 'video' : 'image',
-                source: 'tobejson'
-            }));
+        let allMedia = [...webdesignsMedia, ...tobejsonMedia];
 
-        // Combine and shuffle all media files
-        const allMedia = [...webdesignsMedia, ...tobejsonMedia];
-        const shuffledMedia = allMedia.sort(() => 0.5 - Math.random());
+        // filtering
+        const { type, source, shuffle, limit, cursor } = req.query;
+        if (source && source !== 'all') {
+            allMedia = allMedia.filter(m => m.source === source);
+        }
+        if (type) {
+            allMedia = allMedia.filter(m => m.type === type);
+        }
+
+        // optional shuffle:
+        // - if seed is provided => stable randomized order (good for pagination/infinite scroll)
+        // - otherwise fall back to Math.random (not stable)
+        const { seed } = req.query;
+        if (seed) {
+            allMedia = seededOrder(allMedia, seed);
+        } else if (String(shuffle) === '1' || String(shuffle).toLowerCase() === 'true') {
+            allMedia = allMedia.sort(() => 0.5 - Math.random());
+        }
+
+        // stable pagination by index cursor
+        const { slice: pageItems, nextCursor } = paginate(allMedia, limit, cursor);
+
+        // add absolute URL for frontends hosted elsewhere
+        const withUrls = (items) => items.map(item => ({
+            ...item,
+            url: `${baseUrl}${item.path}`
+        }));
 
         res.json({
             success: true,
             data: {
-                webdesigns: webdesignsMedia,
-                tobejson: tobejsonMedia,
-                all: shuffledMedia,
-                total: shuffledMedia.length
+                webdesigns: withUrls(webdesignsMedia),
+                tobejson: withUrls(tobejsonMedia),
+                all: withUrls(allMedia),
+                page: withUrls(pageItems),
+                nextCursor,
+                total: allMedia.length
             }
         });
 
