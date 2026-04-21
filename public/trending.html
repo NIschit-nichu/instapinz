@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trending Feed - InstaPinz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .feed-card {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+        .badge {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 600;
+        }
+        .fallback-media {
+            height: 16rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            text-align: center;
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+        }
+        .fallback-text {
+            font-size: 2.25rem;
+            line-height: 1.15;
+            font-weight: 700;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            background: #1700C5;
+            background: linear-gradient(to right, #1700C5 0%, #BA8B27 50%, #B30000 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/dashboard" class="text-2xl font-bold text-blue-600">NK</a>
+                <div class="flex items-center gap-3">
+                    <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium">Refresh Feed</button>
+                    <a href="/dashboard" class="text-gray-600 hover:text-blue-600">Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900">Trending Feed</h1>
+            <p class="text-gray-600 mt-1">India-first trends blended with global signals (ages 16-35).</p>
+            <p id="metaInfo" class="text-sm text-gray-500 mt-2">Loading...</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 mb-6">
+            <div id="keywordChips" class="flex flex-wrap gap-2"></div>
+            <select id="moreTopics" class="px-3 py-2 rounded-full bg-white text-gray-700 border text-sm hover:bg-gray-100">
+                <option value="">More topics</option>
+            </select>
+        </div>
+
+        <div id="errorBox" class="hidden mb-5 p-4 rounded-lg bg-red-50 text-red-700 border border-red-200"></div>
+        <div id="loading" class="text-gray-600 mb-4">Fetching live trends...</div>
+        <div id="feed" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+        <div id="loadMoreState" class="text-center text-sm text-gray-500 py-6 hidden">Loading more trends...</div>
+    </main>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:3000'
+            : 'https://instapinz-backend.onrender.com';
+
+        const feedEl = document.getElementById('feed');
+        const loadingEl = document.getElementById('loading');
+        const errorBox = document.getElementById('errorBox');
+        const metaInfo = document.getElementById('metaInfo');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const loadMoreState = document.getElementById('loadMoreState');
+        const keywordChips = document.getElementById('keywordChips');
+        const moreTopicsSelect = document.getElementById('moreTopics');
+        let offset = 0;
+        let limit = 100;
+        let isLoading = false;
+        let hasMore = true;
+        let currentFocus = '__random__';
+        let allKeywords = [];
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function badgeClass(category) {
+            const c = (category || '').toLowerCase();
+            if (c.includes('sports')) return 'bg-green-100 text-green-700';
+            if (c.includes('movies')) return 'bg-purple-100 text-purple-700';
+            if (c.includes('music')) return 'bg-pink-100 text-pink-700';
+            if (c.includes('tech')) return 'bg-indigo-100 text-indigo-700';
+            if (c.includes('war') || c.includes('news')) return 'bg-red-100 text-red-700';
+            if (c.includes('lifestyle')) return 'bg-yellow-100 text-yellow-700';
+            return 'bg-gray-100 text-gray-700';
+        }
+
+        function placeholderThumb(title) {
+            const text = encodeURIComponent((title || 'Trend').slice(0, 40));
+            return `https://placehold.co/640x360/e5e7eb/374151?text=${text}`;
+        }
+
+        function emojiForItem(item) {
+            const c = String(item?.category || '').toLowerCase();
+            if (c.includes('sports')) return '🏆';
+            if (c.includes('music')) return '🎵';
+            if (c.includes('movie')) return '🎬';
+            if (c.includes('game')) return '🎮';
+            if (c.includes('tech') || c.includes('ai')) return '🚀';
+            if (c.includes('lifestyle') || c.includes('travel')) return '🌍';
+            if (c.includes('romance') || c.includes('relationship')) return '💖';
+            if (c.includes('fitness') || c.includes('glow')) return '💪';
+            if (c.includes('money') || c.includes('business')) return '💰';
+            if (c.includes('self')) return '🧠';
+            return '🔥';
+        }
+
+        function emojiFallbackThumb(item) {
+            const emoji = emojiForItem(item);
+            const label = encodeURIComponent((item?.title || 'Trending').slice(0, 30));
+            const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360'><rect width='100%' height='100%' fill='#f3f4f6'/><text x='50%' y='45%' dominant-baseline='middle' text-anchor='middle' font-size='96'>${emoji}</text><text x='50%' y='72%' dominant-baseline='middle' text-anchor='middle' font-size='22' fill='#334155'>${label}</text></svg>`;
+            return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+        }
+
+        function proxiedImage(url) {
+            if (!url) return null;
+            return `${API_URL}/api/image-proxy?url=${encodeURIComponent(url)}`;
+        }
+
+        function fallbackLabel(item) {
+            const raw = String(item?.title || item?.category || 'Trending').trim();
+            return raw.length > 60 ? `${raw.slice(0, 57)}...` : raw;
+        }
+
+        function mediaFallback(item) {
+            return `
+                <div class="fallback-media">
+                    <div class="fallback-text">${escapeHtml(fallbackLabel(item))}</div>
+                </div>
+            `;
+        }
+
+        function buildMedia(item) {
+            if (item.mediaType === 'video' && item.mediaUrl) {
+                if (item.mediaUrl.includes('youtube.com/embed/')) {
+                    return `<iframe class="w-full h-64 hover-play-video" src="${item.mediaUrl}" title="${escapeHtml(item.title)}" allowfullscreen loading="lazy"></iframe>`;
+                }
+                return `<video src="${item.mediaUrl}" muted loop playsinline preload="none" class="w-full h-64 bg-black hover-play-video"></video>`;
+            }
+            if (item.mediaType === 'image' && item.mediaUrl) {
+                const imgSrc = proxiedImage(item.mediaUrl);
+                return `
+                    <div class="relative h-64">
+                        <img src="${imgSrc}" alt="${escapeHtml(item.title)}" class="w-full h-64 object-cover" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                        <div class="hidden absolute inset-0">${mediaFallback(item)}</div>
+                    </div>
+                `;
+            }
+            if (item.thumbnailUrl) {
+                const imgSrc = proxiedImage(item.thumbnailUrl);
+                return `
+                    <div class="relative h-64">
+                        <img src="${imgSrc}" alt="${escapeHtml(item.title)}" class="w-full h-64 object-cover" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                        <div class="hidden absolute inset-0">${mediaFallback(item)}</div>
+                    </div>
+                `;
+            }
+            return mediaFallback(item);
+        }
+
+        function getOpenUrl(item) {
+            if (item.mediaType === 'video' && item.mediaUrl) {
+                if (item.mediaUrl.includes('youtube.com/embed/')) {
+                    return item.mediaUrl.replace('/embed/', '/watch?v=');
+                }
+                return item.mediaUrl;
+            }
+            if (item.mediaType === 'image' && item.mediaUrl) return item.mediaUrl;
+            if (item.mediaUrl) return item.mediaUrl;
+            if (item.source && item.source.includes('google')) {
+                return `https://www.google.com/search?q=${encodeURIComponent(item.title || '')}`;
+            }
+            return '#';
+        }
+
+        function attachHoverAutoplay(scope) {
+            const videos = scope.querySelectorAll('video.hover-play-video');
+            videos.forEach(video => {
+                video.addEventListener('mouseenter', async () => {
+                    try { await video.play(); } catch (_) {}
+                });
+                video.addEventListener('mouseleave', () => {
+                    video.pause();
+                });
+            });
+        }
+
+        function renderItems(items, reset = false) {
+            if (reset) feedEl.innerHTML = '';
+            const html = items.map(item => `
+                <article class="feed-card">
+                    <a href="${escapeHtml(getOpenUrl(item))}" target="_blank" rel="noopener noreferrer" class="block">
+                    ${buildMedia(item)}
+                    <div class="p-4">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="badge ${badgeClass(item.category)}">${escapeHtml(item.category || 'Viral')}</span>
+                            <span class="text-xs text-gray-500">#${item.rank || '-'}</span>
+                        </div>
+                        <h2 class="text-lg font-semibold text-gray-900 leading-snug">${escapeHtml(item.title)}</h2>
+                        <div class="mt-2 text-sm text-gray-500 flex justify-between">
+                            <span>${escapeHtml(item.source || 'source')}</span>
+                        </div>
+                    </div>
+                    </a>
+                </article>
+            `).join('');
+            feedEl.insertAdjacentHTML('beforeend', html);
+            attachHoverAutoplay(feedEl);
+        }
+
+        function randomKeyword() {
+            if (!allKeywords.length) return '';
+            const idx = Math.floor(Math.random() * allKeywords.length);
+            return allKeywords[idx];
+        }
+
+        function highlightSelectedTopic() {
+            keywordChips.querySelectorAll('.chip-btn').forEach(el => {
+                const keyword = el.getAttribute('data-keyword') || '';
+                const selected = keyword === currentFocus;
+                el.classList.toggle('bg-blue-600', selected);
+                el.classList.toggle('text-white', selected);
+                el.classList.toggle('bg-white', !selected);
+                el.classList.toggle('text-gray-700', !selected);
+                el.classList.toggle('border', !selected);
+            });
+        }
+
+        async function loadTrending(reset = false) {
+            if (isLoading) return;
+            isLoading = true;
+            if (reset) {
+                offset = 0;
+                hasMore = true;
+                loadingEl.classList.remove('hidden');
+                errorBox.classList.add('hidden');
+            } else {
+                loadMoreState.classList.remove('hidden');
+            }
+
+            try {
+                const effectiveFocus = currentFocus === '__random__' ? randomKeyword() : currentFocus;
+                const focusParam = effectiveFocus ? `&focus=${encodeURIComponent(effectiveFocus)}` : '';
+                const res = await fetch(`${API_URL}/api/trending?limit=${limit}&offset=${offset}${focusParam}`);
+                const json = await res.json();
+                if (!res.ok || !json.success) throw new Error(json.details || json.error || 'Failed to fetch feed');
+
+                const items = json.data || [];
+                const sources = (json.meta?.sources || []).join(', ');
+                const activeTopic = effectiveFocus || 'all topics';
+                metaInfo.textContent = `Sources: ${sources} | Topic: ${activeTopic} | Refreshed: ${new Date(json.meta?.refreshedAt).toLocaleString()}`;
+                renderItems(items, reset);
+                offset += items.length;
+                hasMore = Boolean(json.meta?.hasMore);
+            } catch (err) {
+                errorBox.textContent = `Could not load trends: ${err.message}`;
+                errorBox.classList.remove('hidden');
+            } finally {
+                loadingEl.classList.add('hidden');
+                loadMoreState.classList.add('hidden');
+                isLoading = false;
+            }
+        }
+
+        async function loadKeywordChips() {
+            try {
+                const res = await fetch(`${API_URL}/api/trending-keywords`);
+                const json = await res.json();
+                if (!res.ok || !json.success) return;
+                const chips = (json.data || []).slice(0, 40);
+                allKeywords = chips;
+                const primaryChips = chips.slice(0, 5);
+                const moreChips = chips.slice(5);
+                keywordChips.innerHTML = `
+                    <button data-keyword="__random__" class="chip-btn px-3 py-1 rounded-full bg-blue-600 text-white text-sm">All</button>
+                    ${primaryChips.map(k => `<button data-keyword="${escapeHtml(k)}" class="chip-btn px-3 py-1 rounded-full bg-white text-gray-700 border text-sm hover:bg-gray-100">${escapeHtml(k)}</button>`).join('')}
+                `;
+                moreTopicsSelect.innerHTML = `
+                    <option value="">More topics</option>
+                    ${moreChips.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('')}
+                `;
+                keywordChips.addEventListener('click', (e) => {
+                    const btn = e.target.closest('.chip-btn');
+                    if (!btn) return;
+                    currentFocus = btn.getAttribute('data-keyword') || '';
+                    moreTopicsSelect.value = '';
+                    highlightSelectedTopic();
+                    loadTrending(true);
+                });
+                moreTopicsSelect.addEventListener('change', () => {
+                    const value = moreTopicsSelect.value || '__random__';
+                    currentFocus = value;
+                    highlightSelectedTopic();
+                    loadTrending(true);
+                });
+                highlightSelectedTopic();
+            } catch (_) {}
+        }
+
+        refreshBtn.addEventListener('click', () => loadTrending(true));
+        window.addEventListener('scroll', () => {
+            if (!hasMore || isLoading) return;
+            const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 900;
+            if (nearBottom) loadTrending(false);
+        });
+        loadKeywordChips();
+        loadTrending(true);
+    </script>
+</body>
+</html>
