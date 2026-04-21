@@ -41,6 +41,9 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .topic-scroll {
+            -webkit-overflow-scrolling: touch;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -68,6 +71,7 @@
                 <option value="">More topics</option>
             </select>
         </div>
+        <div id="moreTopicsButtons" class="topic-scroll hidden overflow-x-auto whitespace-nowrap pb-2 mb-6"></div>
 
         <div id="errorBox" class="hidden mb-5 p-4 rounded-lg bg-red-50 text-red-700 border border-red-200"></div>
         <div id="loading" class="text-gray-600 mb-4">Fetching live trends...</div>
@@ -88,6 +92,7 @@
         const loadMoreState = document.getElementById('loadMoreState');
         const keywordChips = document.getElementById('keywordChips');
         const moreTopicsSelect = document.getElementById('moreTopics');
+        const moreTopicsButtons = document.getElementById('moreTopicsButtons');
         let offset = 0;
         let limit = 100;
         let isLoading = false;
@@ -309,6 +314,12 @@
                     <option value="">More topics</option>
                     ${moreChips.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('')}
                 `;
+                moreTopicsButtons.innerHTML = moreChips.map(k => `
+                    <button data-keyword="${escapeHtml(k)}" class="more-chip inline-block mr-2 px-3 py-2 rounded-full bg-white text-gray-700 border text-sm hover:bg-gray-100">
+                        ${escapeHtml(k)}
+                    </button>
+                `).join('');
+                moreTopicsButtons.classList.toggle('hidden', moreChips.length === 0);
                 keywordChips.addEventListener('click', (e) => {
                     const btn = e.target.closest('.chip-btn');
                     if (!btn) return;
@@ -323,6 +334,23 @@
                     highlightSelectedTopic();
                     loadTrending(true);
                 });
+                moreTopicsButtons.addEventListener('click', (e) => {
+                    const btn = e.target.closest('.more-chip');
+                    if (!btn) return;
+                    currentFocus = btn.getAttribute('data-keyword') || '__random__';
+                    moreTopicsSelect.value = currentFocus === '__random__' ? '' : currentFocus;
+                    highlightSelectedTopic();
+                    loadTrending(true);
+                });
+                moreTopicsButtons.addEventListener('touchend', (e) => {
+                    const btn = e.target.closest('.more-chip');
+                    if (!btn) return;
+                    e.preventDefault();
+                    currentFocus = btn.getAttribute('data-keyword') || '__random__';
+                    moreTopicsSelect.value = currentFocus === '__random__' ? '' : currentFocus;
+                    highlightSelectedTopic();
+                    loadTrending(true);
+                }, { passive: false });
                 highlightSelectedTopic();
             } catch (_) {}
         }
