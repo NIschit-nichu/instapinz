@@ -1,6 +1,6 @@
 # InstaPinz Vibe
 
-[Live App: https://instapinz.vercel.app/](https://instapinz.vercel.app/)
+[Live App: https://instapinz-backend.onrender.com](https://instapinz-backend.onrender.com)
 
 ## Your Ultimate One-Stop Fashion & Aesthetic Feed
 
